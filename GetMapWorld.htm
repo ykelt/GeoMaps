@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html>
+<body>
+
+    <h3>Download Maps By Lon Lat</h3>
+    <div width="300px">
+        <form name="myform" action="javascript:DownImage(zoom1.value, north_lat.value, south_lat.value, west_lon.value, east_lon.value)">
+            Zoom: <input type="text" name="zoom1" value="14" id="zoom1" maxlength="200"><br />
+            north_lat: <input type="text" value="31.914262" name="north_lat" id="north_lat" maxlength="200"><br />
+            south_lat: <input type="text" value="31.878433" name="south_lat" id="south_lat" maxlength="200"><br />
+            west_lon: <input type="text" value="34.780639" name="west_lon" id="west_lon" maxlength="200"><br />
+            east_lon: <input type="text" value="34.834425" name="east_lon" id="east_lon" maxlength="200"><br />
+            <br />
+            <input type="radio" name="mapStyle" id="mapStyle" checked="checked" value="OpenStreetMap"> Open Street Map<br>
+            <input type="radio" name="mapStyle" value="GoogleSatelliteWithTitles"> Google Satellite With Titles<br>
+            <input type="radio" name="mapStyle" value="GoogleSatellite"> Google Satellite <br />
+
+            <input name="Submit" type="submit" value="GetImage" /><br />
+
+
+        </form>
+        <br />
+
+        <h5 id="resLonLatH5"></h5>
+	<h5 id="resLonLatH5_2"></h5>
+
+        <a id="download" download="image.png">
+            <button type="button" onClick="download()">Download</button>
+        </a>
+
+<button type="button" onClick="downloadGeoInfoPng()">Download Geo Info</button>
+
+        <br />
+    </div>
+    <div width="100%">
+        <canvas id="canvas" crossorigin="anonymous"></canvas>
+    </div>
+
+
+
+
+    <script>
+
+        function getDistanceFromLatLonInKm(lat1, lon1, lat2, lon2) {
+            var R = 6371; // Radius of the earth in km
+            var dLat = deg2rad(lat2 - lat1);  // deg2rad below
+            var dLon = deg2rad(lon2 - lon1);
+            var a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+                ;
+            var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            var d = R * c; // Distance in km
+            return d;
+        }
+
+        function deg2rad(deg) {
+            return deg * (Math.PI / 180)
+        }
+
+        function lon2tile(lon, zoom) { return (Math.floor((lon + 180) / 360 * Math.pow(2, zoom))); }
+        function lat2tile(lat, zoom) { return (Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * Math.pow(2, zoom))); }
+
+        function tile2long(x, z) {
+            return (x / Math.pow(2, z) * 360 - 180);
+        }
+        function tile2lat(y, z) {
+            var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+            return (180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n))));
+        }
+
+
+        function download() {
+            //var download = document.getElementById("download");
+            //var image = document.getElementById("canvas").toDataURL("image/png")
+            //    .replace("image/png", "image/octet-stream");
+            //download.setAttribute("href", image);
+            //const canvas = document.getElementById('canvas');
+            //window.location = canvas.toDataURL("image/png");
+
+            ReImg.fromCanvas(document.querySelector('canvas')).downloadPng();
+
+        }
+
+        window.onload = function () {
+
+
+            // myMain();
+        };
+
+        function AddTileToCanvas(url1, x_tile, y_tile) {
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            image2 = new Image(256, 256);
+            image2.setAttribute('crossorigin', 'anonymous');
+            image2.onload = function () {
+                ctx.drawImage(this, x_tile * 256, y_tile * 256);
+
+            }// Draw when image has loaded
+
+            // Load an image of intrinsic size 300x227 in CSS pixels
+            image2.src = url1;
+        }
+        // function drawImageActualSize() {
+        // Use the intrinsic size of image in CSS pixels for the canvas element
+
+
+        // Will draw the image as 300x227, ignoring the custom size of 60x45
+        // given in the constructor
+        //ctx.drawImage(this, 0, 0);
+
+        // To use the custom size we'll have to specify the scale parameters
+        // using the element's width and height properties - lets draw one
+        // on top in the corner:
+        //const canvas = document.getElementById('canvas');
+        //const ctx = canvas.getContext('2d');
+        //ctx.drawImage(image1,0,0);//, x_tile * 256, y_tile * 256);
+        //        }
+
+
+        function AddTileByZoomXY(zoom, x, y, x_tile_on_canvas, y_tile_on_canvas) {
+
+            //var mapStyle1 = document.getElementsByName('mapStyle');
+
+            switch (document.querySelector('input[name="mapStyle"]:checked').value) {
+                case "OpenStreetMap":
+                    url1 = 'https://a.tile.openstreetmap.org/'.concat(zoom, '/', x, '/', y, '.png');
+                    break;
+                case "GoogleSatelliteWithTitles":
+                    url1 = 'http://mt1.google.com/vt/lyrs='.concat('y&x=', x, '&y=', y, '&z=', zoom);
+                    break;
+                case "GoogleSatellite":
+                    url1 = 'http://mt1.google.com/vt/lyrs='.concat('s&x=', x, '&y=', y, '&z=', zoom);
+                    break;
+                default:
+                    url1 = 'https://a.tile.openstreetmap.org/'.concat(zoom, '/', x, '/', y, '.png');
+            }
+
+
+            AddTileToCanvas(url1, x_tile_on_canvas, y_tile_on_canvas);
+        }
+
+
+        function DownloadTileByZoomXy(zoom, x, y) {
+            url1 = 'https://a.tile.openstreetmap.org/'.concat(zoom, '/', x, '/', y, '.png');
+            filename1 = 'z'.concat(zoom, '_x', x, '_y', y, '.png');
+            downloadFile(url1, filename1);
+        }
+
+
+        function downloadFile(url, downloadFileName) {
+            fetch(url)
+                .then(resp => resp.blob())
+                .then(blob => {
+                    const url1 = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url1;
+                    // the filename you want
+                    a.download = downloadFileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url1);
+                    //alert('your file has downloaded!'); // or you know, something with better UX...
+                })
+                .catch(() => alert('oh no!'));
+        }
+
+
+        function myMain() {
+
+        }
+
+        function DownImage(zoom, north_lat, south_lat, west_lon, east_lon) {
+            north_edge_lat = parseFloat(north_lat);// 31.914262;
+            west_edge_lon = parseFloat(west_lon);//34.780639;
+            south_edge_lat = parseFloat(south_lat);//31.878433;
+            east_edge_lon = parseFloat(east_lon);// 34.834425;
+            zoom_1 = parseFloat(zoom);
+
+            //var zoom = 17;
+            var top_tile = lat2tile(north_edge_lat, zoom_1); // eg.lat2tile(34.422, 9);
+            var left_tile = lon2tile(west_edge_lon, zoom_1);
+            var bottom_tile = lat2tile(south_edge_lat, zoom_1);
+            var right_tile = lon2tile(east_edge_lon, zoom_1);
+            var width = Math.abs(left_tile - right_tile) + 1;
+            var height = Math.abs(top_tile - bottom_tile) + 1;
+
+            const canvas = document.getElementById('canvas');
+            const ctx = canvas.getContext('2d');
+            //image1 = new Image(256, 256); // Using optional size for image
+
+
+            minX = left_tile;
+            minY = top_tile;
+
+            maxX = right_tile;
+            maxY = bottom_tile;
+
+            canvas.width = (maxX - minX + 1) * 256;
+            canvas.height = (maxY - minY + 1) * 256;
+
+            var image_top_lat = tile2lat(minY, zoom_1); // eg.lat2tile(34.422, 9);
+            var image_left_lon = tile2long(minX, zoom_1);
+            var image_bottom_lat = tile2lat(maxY+1, zoom_1);
+            var image_right_lon = tile2long(maxX+1, zoom_1);
+
+            HeightKm = getDistanceFromLatLonInKm(image_top_lat, image_left_lon, image_bottom_lat, image_left_lon);
+            WidthKm = getDistanceFromLatLonInKm(image_top_lat, image_left_lon, image_top_lat, image_right_lon);
+
+            heightM = HeightKm * 1000;
+            widthM = WidthKm * 1000;
+            pixelSizeY = heightM / ((maxY - minY + 1) * 256);
+            pixelSizeX = widthM / ((maxX - minX + 1) * 256);
+
+            document.getElementById("resLonLatH5").innerHTML = 'Image box:<br/> top_lat='.concat(image_top_lat, '<br/> down_lat=', image_bottom_lat, '<br/> left_lon= ',
+                image_left_lon, '<br/> right_lon= ', image_right_lon, '<br/> pixel_size_x (meter)= ', pixelSizeX, '<br/> pixel_size_y (meter)= ', pixelSizeY);
+
+
+
+ltSymbol = "&lt;";
+gtSymbol = "&gt;";
+dblQuot = "&quot;";
+newLineSymbol = '<br/>';
+
+
+
+	document.getElementById("resLonLatH5_2").innerHTML = ''.concat(ltSymbol, '?xml version=',dblQuot,'1.0',dblQuot,' encoding=',dblQuot,'utf-8',dblQuot,'?', gtSymbol, newLineSymbol ,
+ltSymbol, 'GeoInfoPng xmlns:xsi=',dblQuot,'http://www.w3.org/2001/XMLSchema-instance',dblQuot, ' xmlns:xsd=',dblQuot, 'http://www.w3.org/2001/XMLSchema',dblQuot,gtSymbol, newLineSymbol ,
+ltSymbol, 'top_lat',gtSymbol, image_top_lat , ltSymbol, '/top_lat',gtSymbol,newLineSymbol ,
+ltSymbol, 'bottom_lat',gtSymbol, image_bottom_lat , ltSymbol, '/bottom_lat',gtSymbol,newLineSymbol ,
+ltSymbol, 'left_lon',gtSymbol, image_left_lon , ltSymbol, '/left_lon',gtSymbol,newLineSymbol ,
+ltSymbol, 'right_lon',gtSymbol, image_right_lon , ltSymbol, '/right_lon',gtSymbol,newLineSymbol ,
+ltSymbol, 'pixel_size_x',gtSymbol, pixelSizeX , ltSymbol, '/pixel_size_x',gtSymbol,newLineSymbol ,
+ltSymbol, 'pixel_size_y',gtSymbol,pixelSizeY , ltSymbol, '/pixel_size_y',gtSymbol,newLineSymbol ,
+ltSymbol,  '/GeoInfoPng',gtSymbol,newLineSymbol );
+
+		
+ltSymbol = "<";
+gtSymbol = ">";
+dblQuot = "\"";
+newLineSymbol = '\r\n';
+
+document.geoInfoTextForSave = ''.concat(ltSymbol, '?xml version=',dblQuot,'1.0',dblQuot,' encoding=',dblQuot,'utf-8',dblQuot,'?', gtSymbol, newLineSymbol ,
+ltSymbol, 'GeoInfoPng xmlns:xsi=',dblQuot,'http://www.w3.org/2001/XMLSchema-instance',dblQuot, ' xmlns:xsd=',dblQuot, 'http://www.w3.org/2001/XMLSchema',dblQuot,gtSymbol, newLineSymbol ,
+ltSymbol, 'top_lat',gtSymbol, image_top_lat , ltSymbol, '/top_lat',gtSymbol,newLineSymbol ,
+ltSymbol, 'bottom_lat',gtSymbol, image_bottom_lat , ltSymbol, '/bottom_lat',gtSymbol,newLineSymbol ,
+ltSymbol, 'left_lon',gtSymbol, image_left_lon , ltSymbol, '/left_lon',gtSymbol,newLineSymbol ,
+ltSymbol, 'right_lon',gtSymbol, image_right_lon , ltSymbol, '/right_lon',gtSymbol,newLineSymbol ,
+ltSymbol, 'pixel_size_x',gtSymbol, pixelSizeX , ltSymbol, '/pixel_size_x',gtSymbol,newLineSymbol ,
+ltSymbol, 'pixel_size_y',gtSymbol,pixelSizeY , ltSymbol, '/pixel_size_y',gtSymbol,newLineSymbol ,
+ltSymbol,  '/GeoInfoPng',gtSymbol,newLineSymbol );
+
+
+            //DownloadTileByZoomXy(14, 9773, 6662);
+            //DownloadTileByZoomXy(14, 9773, 6663);
+            //DownloadTileByZoomXy(14, 9773, 6664);
+
+            for (ix = minX; ix <= maxX; ix++) {
+                for (iy = minY; iy <= maxY; iy++) {
+                    AddTileByZoomXY(zoom_1, ix, iy, ix - minX, iy - minY);
+                }
+
+            }
+
+
+            //  AddTileByZoomXY(14, 9773, 6662, 0, 0);
+            // AddTileByZoomXY(14, 9773, 6663, 0, 1);
+            //AddTileByZoomXY(14, 9773, 6664, 0, 2);
+
+
+
+        }
+
+function downloadGeoInfoPng()
+{
+	downloadText(document.geoInfoTextForSave, 'Image.GeoInfo.txt', 'text/plain') ;
+}
+
+function downloadText(data, filename, type) {
+    var file = new Blob([data], {type: type});
+    if (window.navigator.msSaveOrOpenBlob) // IE10+
+        window.navigator.msSaveOrOpenBlob(file, filename);
+    else { // Others
+        var a = document.createElement("a"),
+                url = URL.createObjectURL(file);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function() {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);  
+        }, 0); 
+    }
+}
+
+
+        ReImg = {
+
+            OutputProcessor: function (encodedData, svgElement) {
+
+                var isPng = function () {
+                    return encodedData.indexOf('data:image/png') === 0;
+                };
+
+                var downloadImage = function (data, filename) {
+                    var a = document.createElement('a');
+                    a.href = data;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                };
+
+                return {
+                    toBase64: function () {
+                        return encodedData;
+                    },
+                    toImg: function () {
+                        var imgElement = document.createElement('img');
+                        imgElement.src = encodedData;
+                        return imgElement;
+                    },
+                    toCanvas: function (callback) {
+                        var canvas = document.createElement('canvas');
+                        var boundedRect = svgElement.getBoundingClientRect();
+                        canvas.width = boundedRect.width;
+                        canvas.height = boundedRect.height;
+                        var canvasCtx = canvas.getContext('2d');
+
+                        var img = this.toImg();
+                        img.onload = function () {
+                            canvasCtx.drawImage(img, 0, 0);
+                            callback(canvas);
+                        };
+                    },
+                    toPng: function () {
+                        if (isPng()) {
+                            var img = document.createElement('img');
+                            img.src = encodedData;
+                            return img;
+                        }
+
+                        this.toCanvas(function (canvas) {
+                            var img = document.createElement('img');
+                            img.src = canvas.toDataURL();
+                            return img;
+                        });
+                    },
+                    toJpeg: function (quality) { // quality should be between 0-1
+                        quality = quality || 1.0;
+                        (function (q) {
+                            this.toCanvas(function (canvas) {
+                                var img = document.createElement('img');
+                                img.src = canvas.toDataURL('image/jpeg', q);
+                                return img;
+                            });
+                        })(quality);
+                    },
+                    downloadPng: function (filename) {
+                        filename = filename || 'image.png';
+                        if (isPng()) {
+                            // it's a canvas already
+                            downloadImage(encodedData, filename);
+                            return;
+                        }
+
+                        // convert to canvas first
+                        this.toCanvas(function (canvas) {
+                            downloadImage(canvas.toDataURL(), filename);
+                        });
+                    }
+                };
+            },
+
+            fromSvg: function (svgElement) {
+                var svgString = new XMLSerializer().serializeToString(svgElement);
+                return new this.OutputProcessor('data:image/svg+xml;base64,' + window.btoa(svgString), svgElement);
+            },
+
+            fromCanvas: function (canvasElement) {
+                var dataUrl = canvasElement.toDataURL();
+                return new this.OutputProcessor(dataUrl);
+            }
+
+        };
+
+        if (typeof exports === 'object' && typeof module !== void 0) {
+            module.exports = {
+                ReImg: ReImg
+            };
+        }
+
+        else {
+            window.ReImg = ReImg;
+        }
+    </script>
+
+</body>
+</html>
